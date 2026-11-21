@@ -1,0 +1,413 @@
+version: 2
+
+models:
+
+  # ------------------------------------------------------------------
+  # DIMENSIONS
+  # ------------------------------------------------------------------
+  - name: gold_dim_calendar
+    description: "Dimension calendrier, limitée à la plage de dates couverte par les prêts et les remboursements."
+    config:
+      tags: ['gold', 'dimension']
+    data_tests:
+      - dbt_utils.expression_is_true:
+          expression: "ID_DIM_CALENDAR = to_number(to_char(DT_CALENDAR, 'YYYYMMDD'))"
+    columns:
+      - name: ID_DIM_CALENDAR
+        description: "Clé de la date au format AAAAMMJJ (ex. 20260930)."
+        data_tests:
+          - unique
+          - not_null
+      - name: DT_CALENDAR
+        description: "Date calendaire."
+        data_tests:
+          - unique
+          - not_null
+      - name: NB_JOUR
+        description: "Numéro du jour dans le mois."
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 31
+      - name: LB_JOUR
+        description: "Nom du jour de la semaine."
+        data_tests:
+          - accepted_values:
+              values: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
+      - name: NB_MOIS
+        description: "Numéro du mois (1 à 12)."
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 12
+      - name: LB_MOIS
+        description: "Nom complet du mois."
+        data_tests:
+          - accepted_values:
+              values: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+      - name: LB_MOIS_COURT
+        description: "Nom abrégé du mois."
+      - name: NB_TRIMESTRE
+        description: "Numéro du trimestre (1 à 4)."
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 4
+      - name: LB_TRIMESTRE
+        description: "Libellé du trimestre (T1 à T4)."
+      - name: NB_SEMESTRE
+        description: "Numéro du semestre (1 ou 2)."
+        data_tests:
+          - accepted_values:
+              values: [1, 2]
+      - name: LB_SEMESTRE
+        description: "Libellé du semestre (S1 ou S2)."
+      - name: NB_ANNEE
+        description: "Année calendaire."
+        data_tests:
+          - not_null
+
+  - name: gold_dim_emprunteur
+    description: >
+      Dimension des emprunteurs, aplatie : elle porte directement la géographie
+      (code postal, département, région, pays), le type et le statut.
+      Les emprunteurs sans code postal sont conservés avec la valeur INCONNU.
+    config:
+      tags: ['gold', 'dimension']
+    data_tests:
+      - dbt_utils.equal_rowcount:
+          compare_model: ref('dim_emprunteur')
+    columns:
+      - name: ID_DIM_EMPRUNTEUR
+        description: "Clé de substitution de l'emprunteur."
+        data_tests:
+          - unique
+          - not_null
+      - name: ID_EMPRUNTEUR
+        description: "Identifiant métier de l'emprunteur (clé source)."
+        data_tests:
+          - unique
+          - not_null
+      - name: LB_CIVILITE_EMPRUNTEUR
+        description: "Civilité (M., Mme) ou INCONNU si elle n'est pas renseignée."
+        data_tests:
+          - accepted_values:
+              values: ['M.', 'Mme', 'INCONNU']
+              config:
+                severity: warn
+      - name: LB_NOM_EMPRUNTEUR
+        description: "Nom de famille."
+        data_tests:
+          - not_null
+      - name: LB_PRENOM_EMPRUNTEUR
+        description: "Prénom."
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: DT_NAISSANCE_EMPRUNTEUR
+        description: "Date de naissance."
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+          - dbt_utils.expression_is_true:
+              expression: "between '1900-01-01' and current_date()"
+              config:
+                severity: warn
+      - name: LB_EMAIL_EMPRUNTEUR
+        description: "Adresse email en minuscules. Peut être vide."
+        data_tests:
+          - dbt_utils.expression_is_true:
+              expression: "is null or regexp_like(LB_EMAIL_EMPRUNTEUR, '[a-z0-9._%+-]+@[a-z0-9.-]+[.][a-z]{2,}')"
+              config:
+                severity: warn
+      - name: CD_POSTAL
+        description: "Code postal sur 5 chiffres, ou INCONNU."
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "= 'INCONNU' or regexp_like(CD_POSTAL, '[0-9]{5}')"
+      - name: CD_DEPARTMENT
+        description: "Code du département (vide si le code postal est inconnu)."
+      - name: DEPARTMENT_NAME
+        description: "Nom du département, ou INCONNU."
+        data_tests:
+          - not_null
+      - name: CD_REGION
+        description: "Code de la région (vide si le code postal est inconnu)."
+      - name: REGION_NAME
+        description: "Nom de la région, ou INCONNU."
+        data_tests:
+          - not_null
+      - name: LIB_COUNTRY
+        description: "Pays, ou INCONNU."
+        data_tests:
+          - not_null
+      - name: CD_TYPE_EMPRUNTEUR
+        description: "Code du type d'emprunteur."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['TE001', 'TE002', 'TE003', 'TE004', 'TE005']
+      - name: LB_TYPE_EMPRUNTEUR
+        description: "Libellé du type d'emprunteur."
+        data_tests:
+          - not_null
+      - name: CD_STATUT_EMPRUNTEUR
+        description: "Code du statut de l'emprunteur."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['SE001', 'SE002', 'SE003', 'SE004']
+      - name: LB_STATUT_EMPRUNTEUR
+        description: "Libellé du statut de l'emprunteur."
+        data_tests:
+          - not_null
+
+  - name: gold_dim_type_pret
+    description: "Dimension des types de prêt."
+    config:
+      tags: ['gold', 'dimension']
+    columns:
+      - name: ID_DIM_TYPE_PRET
+        description: "Clé de substitution du type de prêt."
+        data_tests:
+          - unique
+          - not_null
+      - name: CD_TYPE_PRET
+        description: "Code du type de prêt."
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: ['TP001', 'TP002', 'TP003']
+      - name: LB_TYPE_PRET
+        description: "Libellé du type de prêt."
+        data_tests:
+          - not_null
+
+  - name: gold_dim_statut_pret
+    description: "Dimension des statuts de prêt."
+    config:
+      tags: ['gold', 'dimension']
+    columns:
+      - name: ID_DIM_STATUT_PRET
+        description: "Clé de substitution du statut de prêt."
+        data_tests:
+          - unique
+          - not_null
+      - name: CD_STATUT_PRET
+        description: "Code du statut de prêt."
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: ['SP001', 'SP002', 'SP003']
+      - name: LB_STATUT_PRET
+        description: "Libellé du statut de prêt."
+        data_tests:
+          - not_null
+
+  - name: gold_dim_mode_remboursement
+    description: "Dimension des modes de remboursement."
+    config:
+      tags: ['gold', 'dimension']
+    columns:
+      - name: ID_DIM_MODE_REMBOURSEMENT
+        description: "Clé de substitution du mode de remboursement."
+        data_tests:
+          - unique
+          - not_null
+      - name: CD_MODE_REMBOURSEMENT
+        description: "Code du mode de remboursement."
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: ['MR001', 'MR002', 'MR003', 'MR004']
+      - name: LB_MODE_REMBOURSEMENT
+        description: "Libellé du mode de remboursement."
+        data_tests:
+          - not_null
+
+  - name: gold_dim_periodicite_remboursement
+    description: "Dimension des périodicités de remboursement."
+    config:
+      tags: ['gold', 'dimension']
+    columns:
+      - name: ID_DIM_PERIODICITE_REMBOURSEMENT
+        description: "Clé de substitution de la périodicité."
+        data_tests:
+          - unique
+          - not_null
+      - name: CD_PERIODICITE_REMBOURSEMENT
+        description: "Code de la périodicité."
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: ['PR001', 'PR002', 'PR003', 'PR004']
+      - name: LB_PERIODICITE_REMBOURSEMENT
+        description: "Libellé de la périodicité (mensuelle, trimestrielle, semestrielle, annuelle)."
+        data_tests:
+          - not_null
+
+  # ------------------------------------------------------------------
+  # FAITS
+  # ------------------------------------------------------------------
+  - name: gold_fact_pret
+    description: "Table de faits des prêts. Grain : une ligne par prêt."
+    config:
+      tags: ['gold', 'fact']
+    data_tests:
+      - dbt_utils.equal_rowcount:
+          compare_model: ref('fact_pret')
+    columns:
+      - name: ID_PRET
+        description: "Identifiant du prêt (clé dégénérée)."
+        data_tests:
+          - unique
+          - not_null
+      - name: ID_DIM_CALENDAR
+        description: "Clé de la date du prêt."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('gold_dim_calendar')
+              field: ID_DIM_CALENDAR
+      - name: ID_DIM_EMPRUNTEUR
+        description: "Clé de l'emprunteur."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('gold_dim_emprunteur')
+              field: ID_DIM_EMPRUNTEUR
+      - name: ID_DIM_TYPE_PRET
+        description: "Clé du type de prêt."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('gold_dim_type_pret')
+              field: ID_DIM_TYPE_PRET
+      - name: ID_DIM_STATUT_PRET
+        description: "Clé du statut du prêt."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('gold_dim_statut_pret')
+              field: ID_DIM_STATUT_PRET
+      - name: ID_DIM_PERIODICITE_REMBOURSEMENT
+        description: "Clé de la périodicité de remboursement."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('gold_dim_periodicite_remboursement')
+              field: ID_DIM_PERIODICITE_REMBOURSEMENT
+      - name: MT_PRET
+        description: "Montant du prêt en euros."
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: NB_DUREE_REMBOURSEMENT
+        description: "Durée de remboursement prévue."
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: TX_INTERET_PRET
+        description: "Taux d'intérêt du prêt, en pourcentage."
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+      - name: PRET_COUNT
+        description: "Compteur de prêts, toujours égal à 1, pour faciliter les sommes."
+        data_tests:
+          - accepted_values:
+              values: [1]
+
+  - name: gold_fact_remboursement
+    description: >
+      Table de faits des remboursements. Grain : une ligne par remboursement.
+      Reprend du prêt les clés de l'emprunteur, du type de prêt et de la périodicité.
+    config:
+      tags: ['gold', 'fact']
+    data_tests:
+      - dbt_utils.equal_rowcount:
+          compare_model: ref('fact_remboursement')
+      - dbt_utils.expression_is_true:
+          expression: "abs(MT_REMBOURSE - (MT_CAPITAL_PAYE + MT_INTERET_PAYE)) < 0.01"
+    columns:
+      - name: ID_REMBOURSEMENT
+        description: "Identifiant du remboursement (clé dégénérée)."
+        data_tests:
+          - unique
+          - not_null
+      - name: ID_PRET
+        description: "Identifiant du prêt remboursé."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('gold_fact_pret')
+              field: ID_PRET
+      - name: ID_DIM_CALENDAR
+        description: "Clé de la date du remboursement."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('gold_dim_calendar')
+              field: ID_DIM_CALENDAR
+      - name: ID_DIM_MODE_REMBOURSEMENT
+        description: "Clé du mode de remboursement."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('gold_dim_mode_remboursement')
+              field: ID_DIM_MODE_REMBOURSEMENT
+      - name: ID_DIM_EMPRUNTEUR
+        description: "Clé de l'emprunteur (reprise du prêt)."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('gold_dim_emprunteur')
+              field: ID_DIM_EMPRUNTEUR
+      - name: ID_DIM_TYPE_PRET
+        description: "Clé du type de prêt (reprise du prêt)."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('gold_dim_type_pret')
+              field: ID_DIM_TYPE_PRET
+      - name: ID_DIM_PERIODICITE_REMBOURSEMENT
+        description: "Clé de la périodicité (reprise du prêt)."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('gold_dim_periodicite_remboursement')
+              field: ID_DIM_PERIODICITE_REMBOURSEMENT
+      - name: MT_REMBOURSE
+        description: "Montant total remboursé en euros (capital plus intérêts)."
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: MT_CAPITAL_PAYE
+        description: "Part de capital payée en euros."
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: MT_INTERET_PAYE
+        description: "Part d'intérêts payée en euros."
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: REMBOURSEMENT_COUNT
+        description: "Compteur de remboursements, toujours égal à 1."
+        data_tests:
+          - accepted_values:
+              values: [1]
