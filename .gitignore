@@ -4,3 +4,15 @@ dbt_packages/
 logs/
 .env
 dbt_internal_packages/
+# dbt credentials
+profiles.yml
+**/profiles.yml
+
+# Python
+.venv/
+__pycache__/
+
+# dbt generated files
+target/
+logs/
+dbt_packages/
