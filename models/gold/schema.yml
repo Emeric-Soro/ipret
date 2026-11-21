@@ -85,6 +85,19 @@ models:
       - dbt_utils.equal_rowcount:
           arguments:
             compare_model: ref('dim_emprunteur')
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "DT_NAISSANCE_EMPRUNTEUR is null or DT_NAISSANCE_EMPRUNTEUR between '1900-01-01' and current_date()"
+          config:
+            severity: warn
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "LB_EMAIL_EMPRUNTEUR is null or regexp_like(LB_EMAIL_EMPRUNTEUR, '[a-z0-9._%+-]+@[a-z0-9.-]+[.][a-z]{2,}')"
+          config:
+            severity: warn
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "CD_POSTAL = 'INCONNU' or regexp_like(CD_POSTAL, '[0-9]{5}')"
     columns:
       - name: ID_DIM_EMPRUNTEUR
         description: "Clé de substitution de l'emprunteur."
@@ -120,26 +133,13 @@ models:
           - not_null:
               config:
                 severity: warn
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "DT_NAISSANCE_EMPRUNTEUR between '1900-01-01' and current_date()"
-              config:
-                severity: warn
       - name: LB_EMAIL_EMPRUNTEUR
         description: "Adresse email en minuscules. Peut être vide."
         data_tests:
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "LB_EMAIL_EMPRUNTEUR is null or regexp_like(LB_EMAIL_EMPRUNTEUR, '[a-z0-9._%+-]+@[a-z0-9.-]+[.][a-z]{2,}')"
-              config:
-                severity: warn
       - name: CD_POSTAL
         description: "Code postal sur 5 chiffres, ou INCONNU."
         data_tests:
           - not_null
-          - dbt_utils.expression_is_true:
-              arguments:
-                expression: "CD_POSTAL = 'INCONNU' or regexp_like(CD_POSTAL, '[0-9]{5}')"
       - name: CD_DEPARTMENT
         description: "Code du département (vide si le code postal est inconnu)."
       - name: DEPARTMENT_NAME
