@@ -135,7 +135,6 @@ models:
                 severity: warn
       - name: LB_EMAIL_EMPRUNTEUR
         description: "Adresse email en minuscules. Peut être vide."
-        data_tests:
       - name: CD_POSTAL
         description: "Code postal sur 5 chiffres, ou INCONNU."
         data_tests:
@@ -356,6 +355,23 @@ models:
           - accepted_values:
               arguments:
                 values: [1]
+      - name: MT_CAPITAL_REMBOURSE
+        description: "Capital déjà remboursé pour ce prêt (0 si aucun remboursement)."
+        data_tests:
+          - not_null
+      - name: MT_RESTANT_A_REMBOURSER
+        description: "Capital restant à rembourser : montant du prêt moins capital remboursé."
+        data_tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: ">= 0"
+      - name: PRET_ETAT_INITIAL_COUNT
+        description: "1 si le prêt n'a reçu aucun remboursement, 0 sinon."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
 
   - name: gold_fact_remboursement
     description: >
